@@ -22,7 +22,7 @@
 
 ```bash
 cd /path/to/your-project
-uvx --from git+https://github.com/OWNER/REPO pdf-rag
+uvx --from git+https://github.com/MasterTyping/DOCP pdf-rag
 ```
 
 - 이미 등록되어 있으면 바로 Claude Code를 엽니다.
@@ -36,10 +36,22 @@ uvx --from git+https://github.com/OWNER/REPO pdf-rag
 ```bash
 cd /path/to/your-project
 mkdir -p rag
-claude mcp add pdf-rag --transport stdio --scope local -e PDF_RAG_DIR="$PWD/rag" -- uvx --from git+https://github.com/OWNER/REPO pdf-rag-server
+claude mcp add pdf-rag --transport stdio --scope local -e PDF_RAG_DIR="$PWD/rag" -- uvx --from git+https://github.com/MasterTyping/DOCP pdf-rag-server
 ```
 
 `--scope local`을 `--scope project`로 바꾸면 프로젝트의 `.mcp.json`에 기록됩니다. 이 파일에는 `PDF_RAG_DIR`의 절대 경로가 저장되므로, 커밋해서 공유하면 경로가 같은 환경에서만 동작합니다.
+
+### 클론해서 로컬 `.venv`로 사용
+
+`uv` 없이 쓰려면 저장소를 클론한 뒤 `setup.sh`를 실행하세요. Python 3.10 이상이 필요하고, 완료되면 이 PC의 경로가 반영된 등록 명령을 출력합니다.
+
+```bash
+git clone https://github.com/MasterTyping/DOCP
+cd DOCP
+./setup.sh
+```
+
+특정 Python을 쓰려면 `PYTHON=python3.12 ./setup.sh`로 실행합니다. 클론한 폴더를 옮기면 `.venv`를 지우고 다시 실행한 뒤 재등록해야 합니다.
 
 ### 확인, 경로 변경, 제거
 
