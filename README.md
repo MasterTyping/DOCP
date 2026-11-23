@@ -12,13 +12,22 @@
 
 ## 준비물
 
-[Claude Code](https://code.claude.com)와 [uv](https://docs.astral.sh/uv/)가 필요합니다. 저장소를 직접 클론할 필요는 없습니다.
+[Claude Code](https://code.claude.com)가 필요합니다. [uv](https://docs.astral.sh/uv/)가 없으면 한 줄 설치가 자동으로 설치합니다. 저장소를 직접 클론할 필요는 없습니다.
 
 ## 프로젝트에 등록하기
 
 전역(`--scope user`)으로 등록하지 말고, 이 도구가 필요한 프로젝트 폴더에서 개별 등록하세요. PDF 폴더는 프로젝트마다 따로 저장됩니다.
 
-### 실행기로 등록 (추천)
+### 한 줄 설치 (추천)
+
+```bash
+cd /path/to/your-project
+curl -fsSL https://raw.githubusercontent.com/MasterTyping/DOCP/main/install.sh | sh
+```
+
+`<프로젝트>/rag`를 PDF 폴더로 만들어 `local` 등록하고, 이 폴더는 git에서 제외합니다. 이미 등록되어 있으면 아무것도 바꾸지 않습니다. 완료 후 Claude Code를 다시 시작하세요.
+
+### 실행기로 등록 (폴더 선택)
 
 ```bash
 cd /path/to/your-project
