@@ -25,7 +25,24 @@ cd /path/to/your-project
 curl -fsSL https://raw.githubusercontent.com/MasterTyping/DOCP/main/install.sh | sh
 ```
 
-`<프로젝트>/rag`를 PDF 폴더로 만들어 `local` 등록하고, 이 폴더는 git에서 제외합니다. 이미 등록되어 있으면 아무것도 바꾸지 않습니다. 완료 후 Claude Code를 다시 시작하세요.
+`<프로젝트>/rag`를 PDF 폴더로 만들어 `local` 등록합니다. 새로 만든 `rag/`는 git에서 제외하고, 이미 있던 폴더는 그대로 둡니다. 이미 등록되어 있으면 아무것도 바꾸지 않습니다. 완료 후 Claude Code를 다시 시작하세요.
+
+### 다른 AI 도구에 등록
+
+명령 끝에 도구 이름을 붙이면 해당 도구의 프로젝트 설정에 추가합니다. 기존 설정은 유지합니다.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MasterTyping/DOCP/main/install.sh | sh -s -- cursor
+```
+
+| 이름 | 도구 | 설정 파일 |
+|---|---|---|
+| `cursor` | Cursor | `.cursor/mcp.json` |
+| `vscode` | VS Code (Copilot) | `.vscode/mcp.json` |
+| `gemini` | Gemini CLI | `.gemini/settings.json` |
+| `codex` | Codex | `.codex/config.toml` (신뢰한 프로젝트에서만 로드) |
+
+이 설정 파일에는 이 PC의 절대 경로가 들어가므로 커밋하지 않는 것이 좋습니다. 주석이 있는 JSON 설정은 변경하지 않고 오류로 종료하니, 이때는 직접 추가하세요.
 
 ### 실행기로 등록 (폴더 선택)
 

@@ -14,6 +14,7 @@ dependencies = ["mcp[cli]>=1.30,<2", "pymupdf==2.1"]
 [project.scripts]
 pdf-rag = "run:main"
 pdf-rag-server = "server:main"
+pdf-rag-add = "run:add_client"
 
 [tool.setuptools]
 py-modules = ["run", "server"]

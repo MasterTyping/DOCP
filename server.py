@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pymupdf
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 # MuPDF writes warnings to stdout by default, which would corrupt the MCP stream.
@@ -15,6 +16,7 @@ pymupdf.set_messages(stream=sys.stderr)
 MAX_PAGES_PER_READ = 5
 MAX_SEARCH_RESULTS = 50
 SNIPPET_RADIUS = 100
+READ_ONLY = ToolAnnotations(readOnlyHint=True)
 
 PDF_DIR = os.environ.get("PDF_RAG_DIR")
 
@@ -39,7 +41,7 @@ def _open_pdf(file_path: str) -> pymupdf.Document:
     return doc
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def get_pdf_info(file_path: str) -> dict:
     """Return page count, metadata and table of contents. Call this first to learn the document structure."""
     with _open_pdf(file_path) as doc:
@@ -51,7 +53,7 @@ def get_pdf_info(file_path: str) -> dict:
         }
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def search_pdf(file_path: str, query: str, max_results: int = 5) -> dict:
     """Case-insensitive keyword search across all pages. Returns 1-based page numbers with context snippets."""
     words = query.split()
@@ -75,7 +77,7 @@ def search_pdf(file_path: str, query: str, max_results: int = 5) -> dict:
     return {"query": query, "results": results, "truncated": False}
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def read_pdf_pages(file_path: str, start_page: int, end_page: int) -> dict:
     """Read full text of a 1-based inclusive page range, at most 5 pages per call."""
     if start_page < 1 or end_page < start_page:
