@@ -1,14 +1,17 @@
 """Local PDF and Markdown search MCP server (stdio). stdout is reserved for the protocol."""
+import json
 import logging
 import os
 import re
 import sys
 from contextlib import contextmanager
 from pathlib import Path
+from urllib.parse import quote, unquote
 
 import pymupdf
 from mcp.server.fastmcp import FastMCP
-from mcp.types import ToolAnnotations
+from mcp.server.lowlevel.helper_types import ReadResourceContents
+from mcp.types import Resource, ToolAnnotations
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 # MuPDF writes warnings to stdout by default, which would corrupt the MCP stream.
@@ -23,9 +26,62 @@ MD_LINES_PER_PAGE = 100
 MD_FENCE = re.compile(r" {0,3}(`{3,}|~{3,})(.*)$")
 MD_HEADING = re.compile(r" {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$")
 
+DOC_URI = "doc://rag/"
+MAX_LISTED_DOCS = 500
+
 PDF_DIR = os.environ.get("PDF_RAG_DIR")
 
-mcp = FastMCP(
+
+def _documents() -> list[Path]:
+    """Return documents in the registered folder, relative to it, for @ autocomplete."""
+    if not PDF_DIR:
+        return []
+    root, docs = Path(PDF_DIR).resolve(), []
+    for folder, dirs, files in os.walk(root):
+        dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d != "node_modules")
+        for name in sorted(files):
+            path = Path(folder) / name
+            if (
+                path.suffix.lower() in (".pdf", ".md")
+                and not name.startswith(".")
+                and path.is_file()
+                and path.resolve().is_relative_to(root)  # A symlink must not reveal outside files.
+            ):
+                docs.append(path.relative_to(root))
+                if len(docs) == MAX_LISTED_DOCS:  # shortcut: later files are not suggested, paginate if a folder exceeds this
+                    return docs
+    return docs
+
+
+class DocServer(FastMCP):
+    """Expose documents as resources, which Claude Code offers in @ autocomplete."""
+
+    async def list_resources(self) -> list[Resource]:
+        return [
+            Resource(
+                uri=DOC_URI + quote(doc.as_posix()),
+                name=doc.as_posix(),
+                description=doc.as_posix(),  # The menu percent-encodes non-ASCII URIs, so show the real name here.
+                mimeType="text/plain",
+            )
+            for doc in _documents()
+        ]
+
+    async def read_resource(self, uri) -> list[ReadResourceContents]:
+        if not str(uri).startswith(DOC_URI):
+            return list(await super().read_resource(uri))
+        name = unquote(str(uri)[len(DOC_URI):])
+        if not PDF_DIR or not _resolve(name).is_relative_to(Path(PDF_DIR).resolve()):
+            raise ValueError(f"Document is outside the registered folder: {name}")
+        # Only the outline: attaching a whole PDF to the prompt could exhaust the context.
+        text = (
+            f"Use search_pdf and read_pdf_pages with file_path={json.dumps(name, ensure_ascii=False)} to read this document.\n"
+            + json.dumps(get_pdf_info(name), ensure_ascii=False, indent=2)
+        )
+        return [ReadResourceContents(content=text, mime_type="text/plain")]
+
+
+mcp = DocServer(
     "pdf-rag",
     instructions=(
         f"Default document folder: {PDF_DIR}. Tools read .pdf and .md files. Relative file_path values resolve against it."

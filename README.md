@@ -1,6 +1,6 @@
 # 로컬 PDF·Markdown 검색 MCP 서버
 
-로컬 PDF와 Markdown(`.md`)을 구조 파악, 키워드 검색, 페이지 읽기 순서로 탐색하는 `stdio` 기반 MCP 서버입니다. 도구는 인자로 받은 `file_path`만 열고, 다른 디렉토리를 스캔하지 않습니다.
+로컬 PDF와 Markdown(`.md`)을 구조 파악, 키워드 검색, 페이지 읽기 순서로 탐색하는 `stdio` 기반 MCP 서버입니다. 도구는 인자로 받은 `file_path`만 열고, `@` 자동완성 목록은 등록한 폴더 안의 파일 이름만 읽습니다.
 
 ## 도구
 
@@ -96,13 +96,20 @@ PDF나 `.md` 파일을 등록한 폴더에 넣고 Claude Code에 요청하면 �
 문서.pdf의 목차를 보여주고 "인증"이 나오는 부분을 찾아 페이지 번호와 함께 요약해줘
 ```
 
+### `@` 자동완성
+
+Claude Code 프롬프트에 `@`와 파일명 일부를 입력하면 등록한 폴더의 PDF와 `.md`가 목록에 나타납니다. 선택하면 본문 전체가 아니라 목차와 페이지 수만 첨부되고, 내용은 검색·읽기 도구로 필요한 부분만 가져옵니다. 파일을 새로 넣은 뒤에는 `/mcp`에서 `pdf-rag`를 다시 연결하세요.
+
 ## 업데이트
 
-uv가 설치본을 캐시하므로, 새 버전을 받으려면 캐시를 비운 뒤 Claude Code를 다시 시작하세요.
+설치한 프로젝트 폴더에서 **설치 명령을 그대로 다시 실행**한 뒤 해당 도구를 재시작하세요. 최신 버전을 받고, 기존 PDF 폴더와 등록 설정은 유지합니다.
 
 ```bash
-uv cache clean pdf-rag-mcp
+curl -fsSL https://raw.githubusercontent.com/MasterTyping/DOCP/main/install.sh | sh              # Claude Code
+curl -fsSL https://raw.githubusercontent.com/MasterTyping/DOCP/main/install.sh | sh -s -- cursor # 다른 도구
 ```
+
+클론해서 로컬 `.venv`로 쓰는 경우에는 저장소에서 `git pull` 후 `./setup.sh`를 실행하세요.
 
 ## 제한 사항
 

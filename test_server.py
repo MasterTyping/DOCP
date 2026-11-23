@@ -1,4 +1,5 @@
 """Run with: python -m unittest test_server"""
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
@@ -41,6 +42,23 @@ class Documents(unittest.TestCase):
         for name in ("../secret.md", str(self.root / "secret.md"), "link.md", "bad.md"):
             with self.assertRaises(ValueError):
                 server.search_pdf(name, "secret")
+
+    def test_resources_list_only_folder_documents_and_attach_outline(self):
+        (self.root / "secret.md").write_text("secret")
+        (self.docs / "link.md").symlink_to(self.root / "secret.md")
+        (self.docs / ".hidden").mkdir()
+        (self.docs / ".hidden" / "h.md").write_text("h")
+        (self.docs / "note.txt").write_text("n")
+        (self.docs / "sub").mkdir()
+        (self.docs / "sub" / "한글 문서.md").write_text("# 제목\n본문 비밀값\n", encoding="utf-8")
+        listed = asyncio.run(server.mcp.list_resources())
+        self.assertEqual([r.name for r in listed], ["sub/한글 문서.md"])
+        content = asyncio.run(server.mcp.read_resource(str(listed[0].uri)))[0].content
+        self.assertIn("제목", content)
+        self.assertNotIn("비밀값", content)
+        for uri in ("doc://rag/../secret.md", "doc://rag/%2E%2E/secret.md", "doc://rag/" + str(self.root / "secret.md")):
+            with self.assertRaises(ValueError):
+                asyncio.run(server.mcp.read_resource(uri))
 
     def test_pdf_still_works(self):
         doc = pymupdf.open()

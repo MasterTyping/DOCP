@@ -1,5 +1,5 @@
 #!/bin/sh
-# Register pdf-rag in the current project:
+# Install or update pdf-rag in the current project. Re-run the same command to update:
 #   curl -fsSL https://raw.githubusercontent.com/MasterTyping/DOCP/main/install.sh | sh -s -- [claude|cursor|vscode|gemini|codex]
 set -eu
 
@@ -16,14 +16,14 @@ main() {
             ;;
     esac
 
+    registered=""
     if [ "$client" = claude ]; then
         command -v claude >/dev/null || {
             echo "오류: Claude Code(claude)를 찾을 수 없습니다. 먼저 설치하세요: https://code.claude.com" >&2
             exit 1
         }
         if claude mcp get pdf-rag >/dev/null 2>&1 </dev/null; then
-            echo "pdf-rag가 이 프로젝트에 이미 등록되어 있습니다. 확인: claude mcp get pdf-rag"
-            exit 0
+            registered=1
         fi
     fi
 
@@ -41,23 +41,35 @@ main() {
         }
     fi
 
-    folder="$PWD/rag"
-    # PDFs can be private, so ignore them, but never hide files in a rag/ folder the project already had.
-    if [ ! -e "$folder" ]; then
-        mkdir -p "$folder"
-        printf '*\n' >"$folder/.gitignore"
-    fi
+    # Fetch first, so a failed download changes no registration. The server exits on stdin EOF.
+    echo "최신 버전을 받는 중입니다..."
+    uvx -q --refresh --from "$SOURCE" pdf-rag-server </dev/null >/dev/null || {
+        echo "오류: 최신 버전을 받지 못했습니다. 기존 등록은 변경하지 않았습니다." >&2
+        exit 1
+    }
 
-    if [ "$client" = claude ]; then
+    if [ "$client" != claude ]; then
+        uvx -q --from "$SOURCE" pdf-rag-add "$client" "$PWD/rag" </dev/null
+    elif [ -z "$registered" ]; then
+        folder="$PWD/rag"
+        # PDFs can be private, so ignore them, but never hide files in a rag/ folder the project already had.
+        if [ ! -e "$folder" ]; then
+            mkdir -p "$folder"
+            printf '*\n' >"$folder/.gitignore"
+        fi
         # Absolute uvx path: Claude Code may start without the PATH a fresh uv install just added.
         claude mcp add pdf-rag --transport stdio --scope local -e "PDF_RAG_DIR=$folder" -- \
             "$(command -v uvx)" --from "$SOURCE" pdf-rag-server </dev/null
+        echo "claude: 등록 완료. PDF 폴더: $folder"
+    elif claude mcp get pdf-rag </dev/null 2>/dev/null | grep -Fq "$SOURCE"; then
+        echo "claude: 업데이트 완료. 기존 PDF 폴더와 설정은 유지합니다."
     else
-        uvx --from "$SOURCE" pdf-rag-add "$client" "$folder" </dev/null
+        echo "claude: 이 프로젝트는 GitHub 설치본이 아닌 서버로 등록되어 있어 자동 업데이트되지 않습니다."
+        echo "클론해서 쓰는 경우 해당 폴더에서 git pull 후 ./setup.sh 를 실행하세요."
     fi
 
     echo
-    echo "PDF를 $folder 에 넣고 $client 를 다시 시작하세요."
+    echo "$client 를 다시 시작하면 적용됩니다."
 }
 
 main "$@"

@@ -93,7 +93,14 @@ def add_client() -> None:
         added = add_to_config(client, Path.cwd(), folder, command)
     except (ValueError, OSError) as e:
         sys.exit(f"오류: 설정 파일을 변경하지 않았습니다. 직접 확인하세요. ({e})")
-    print(f"{client}: 등록 완료." if added else f"{client}: pdf-rag가 이미 등록되어 있습니다.")
+    if not added:
+        print(f"{client}: 업데이트 완료. 기존 PDF 폴더와 설정은 유지합니다.")
+        return
+    # Created only on first registration, so an update never adds a stray folder.
+    if not Path(folder).exists():
+        Path(folder).mkdir(parents=True)
+        (Path(folder) / ".gitignore").write_text("*\n", encoding="utf-8")
+    print(f"{client}: 등록 완료. PDF 폴더: {folder}")
 
 
 def main() -> None:
