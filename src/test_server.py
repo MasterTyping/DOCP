@@ -60,6 +60,29 @@ class Documents(unittest.TestCase):
             with self.assertRaises(ValueError):
                 asyncio.run(server.mcp.read_resource(uri))
 
+    def test_folder_scope_limits_documents_and_search(self):
+        (self.root / "secret.md").write_text("안전")
+        for name in ("법규/a.md", "법규/세부/b.md", "매뉴얼/c.md"):
+            (self.docs / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.docs / name).write_text("안전 기준", encoding="utf-8")
+        (self.docs / "법규/bad.md").write_bytes(b"\xff\xfe\x00")
+        self.assertEqual(server.list_documents("법규")["documents"], ["법규/a.md", "법규/bad.md", "법규/세부/b.md"])
+        self.assertEqual(len(server.list_documents()["documents"]), 4)
+        found = server.search_folder("법규", "안전", 50)
+        self.assertEqual([r["file_path"] for r in found["results"]], ["법규/a.md", "법규/세부/b.md"])
+        self.assertEqual([s["file_path"] for s in found["skipped"]], ["법규/bad.md"])
+        self.assertFalse(found["truncated"])
+        limited = server.search_folder("법규", "안전", 1)
+        self.assertEqual(len(limited["results"]), 1)
+        self.assertTrue(limited["truncated"])
+        for folder in ("..", str(self.root), "없는폴더", "법규/a.md"):
+            with self.assertRaises(ValueError):
+                server.list_documents(folder)
+            with self.assertRaises(ValueError):
+                server.search_folder(folder, "안전")
+        with self.assertRaises(ValueError):
+            server.search_folder("법규", "   ")
+
     def test_pdf_still_works(self):
         doc = pymupdf.open()
         doc.new_page().insert_text((72, 72), "hello pdf")

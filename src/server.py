@@ -32,12 +32,15 @@ MAX_LISTED_DOCS = 500
 PDF_DIR = os.environ.get("PDF_RAG_DIR")
 
 
-def _documents() -> list[Path]:
-    """Return documents in the registered folder, relative to it, for @ autocomplete."""
+def _documents(subfolder: str = "") -> list[Path]:
+    """Return documents under a subfolder of the registered folder, relative to the registered folder."""
     if not PDF_DIR:
         return []
     root, docs = Path(PDF_DIR).resolve(), []
-    for folder, dirs, files in os.walk(root):
+    start = (root / Path(subfolder).expanduser()).resolve()
+    if not start.is_dir() or not start.is_relative_to(root):
+        raise ValueError(f"Folder not found inside the document folder: {subfolder}")
+    for folder, dirs, files in os.walk(start):
         dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d != "node_modules")
         for name in sorted(files):
             path = Path(folder) / name
@@ -84,7 +87,8 @@ class DocServer(FastMCP):
 mcp = DocServer(
     "pdf-rag",
     instructions=(
-        f"Default document folder: {PDF_DIR}. Tools read .pdf and .md files. Relative file_path values resolve against it."
+        f"Default document folder: {PDF_DIR}. Tools read .pdf and .md files. Relative file_path values resolve against it. "
+        "When the user names a subfolder, call list_documents or search_folder with it and reference only documents inside it."
         if PDF_DIR else "Tools read .pdf and .md files."
     ),
 )
@@ -195,6 +199,42 @@ def search_pdf(file_path: str, query: str, max_results: int = 5) -> dict:
                 start, end = max(0, m.start() - SNIPPET_RADIUS), m.end() + SNIPPET_RADIUS
                 results.append({"page": n + 1, "snippet": text[start:end]})
     return {"query": query, "results": results, "truncated": False}
+
+
+@mcp.tool(annotations=READ_ONLY)
+def list_documents(folder: str = "") -> dict:
+    """List .pdf and .md files under a subfolder of the document folder, including nested folders. Empty folder means all documents."""
+    docs = _documents(folder)
+    return {
+        "folder": folder,
+        "documents": [doc.as_posix() for doc in docs],
+        "truncated": len(docs) == MAX_LISTED_DOCS,
+    }
+
+
+@mcp.tool(annotations=READ_ONLY)
+def search_folder(folder: str, query: str, max_results: int = 5) -> dict:
+    """Keyword search limited to the .pdf and .md files under a subfolder. Returns file_path, 1-based page and snippet; unreadable files are listed in skipped."""
+    if not query.split():
+        raise ValueError("query must not be empty")
+    if max_results < 1:
+        raise ValueError("max_results must be at least 1")
+    limit = min(max_results, MAX_SEARCH_RESULTS)
+    docs = _documents(folder)
+    results, skipped, truncated = [], [], len(docs) == MAX_LISTED_DOCS
+    for doc in docs:
+        if len(results) == limit:  # Remaining documents were not searched.
+            truncated = True
+            break
+        name = doc.as_posix()
+        try:
+            found = search_pdf(name, query, limit - len(results))
+        except ValueError as e:  # One bad file must not hide matches in the others.
+            skipped.append({"file_path": name, "error": str(e)})
+            continue
+        results += [{"file_path": name, **r} for r in found["results"]]
+        truncated = truncated or found["truncated"]
+    return {"folder": folder, "query": query, "results": results, "skipped": skipped, "truncated": truncated}
 
 
 @mcp.tool(annotations=READ_ONLY)

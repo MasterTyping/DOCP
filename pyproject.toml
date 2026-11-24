@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "pdf-rag-mcp"
 version = "0.1.0"
 description = "Local PDF search MCP server over stdio"
-readme = "README.md"
+readme = "src/README.md"
 requires-python = ">=3.10"
 # mcp 2.x renamed FastMCP to MCPServer, so stay on 1.x
 dependencies = ["mcp[cli]>=1.30,<2", "pymupdf==2.1"]
@@ -17,4 +17,6 @@ pdf-rag-server = "server:main"
 pdf-rag-add = "run:add_client"
 
 [tool.setuptools]
+# Sources live in src/, but the project root must stay here so `uvx --from git+<repo>` resolves.
+package-dir = {"" = "src"}
 py-modules = ["run", "server"]
