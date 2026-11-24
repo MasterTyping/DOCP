@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from run import CODEX_CONFIG, JSON_CLIENTS, add_to_config
+from src.run import CODEX_CONFIG, JSON_CLIENTS, add_to_config
 
 CMD = ["/bin/uvx", "--from", "git+https://example.com/x", "pdf-rag-server"]
 

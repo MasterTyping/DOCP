@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pymupdf
 
-import server
+import src.server as server
 
 
 class Documents(unittest.TestCase):
