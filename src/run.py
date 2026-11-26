@@ -104,7 +104,7 @@ def add_client() -> None:
 
 
 def main() -> None:
-    found =subprocess.run(["claude", "mcp", "get", "pdf-rag"], capture_output=True, stdin=subprocess.DEVNULL)
+    found = subprocess.run(["claude", "mcp", "get", "pdf-rag"], capture_output=True, stdin=subprocess.DEVNULL)
     if found.returncode != 0:
         folder = Path(pick_folder() or Path.cwd() / "rag").resolve()
         folder.mkdir(parents=True, exist_ok=True)

@@ -1,4 +1,4 @@
-"""Run with: python -m unittest test_run"""
+"""Run from the repo root: python -m unittest src.test_run"""
 import json
 import tempfile
 import unittest

@@ -1,13 +1,16 @@
 #!/bin/sh
 # Install or update pdf-rag in the current project. Re-run the same command to update:
-#   curl -fsSL https://raw.githubusercontent.com/MasterTyping/DOCP/main/install.sh | sh -s -- [claude|cursor|vscode|gemini|codex]
+#   curl -fsSL https://raw.githubusercontent.com/MasterTyping/DOCP/main/install.sh | sh -s -- [claude|cursor|vscode|gemini|codex] [문서 폴더]
 set -eu
 
 SOURCE=git+https://github.com/MasterTyping/DOCP
+AGENT_URL=https://raw.githubusercontent.com/MasterTyping/DOCP/main/.claude/agents/doc-skimmer.md
 
 # Wrapped in main so a truncated download cannot run half a script.
 main() {
     client="${1:-claude}"
+    folder="${2:-$PWD/rag}"
+    case "$folder" in /*) ;; *) folder="$PWD/$folder" ;; esac
     case "$client" in
         claude | cursor | vscode | gemini | codex) ;;
         *)
@@ -49,9 +52,8 @@ main() {
     }
 
     if [ "$client" != claude ]; then
-        uvx -q --from "$SOURCE" pdf-rag-add "$client" "$PWD/rag" </dev/null
+        uvx -q --from "$SOURCE" pdf-rag-add "$client" "$folder" </dev/null
     elif [ -z "$registered" ]; then
-        folder="$PWD/rag"
         # PDFs can be private, so ignore them, but never hide files in a rag/ folder the project already had.
         if [ ! -e "$folder" ]; then
             mkdir -p "$folder"
@@ -66,6 +68,18 @@ main() {
     else
         echo "claude: 이 프로젝트는 GitHub 설치본이 아닌 서버로 등록되어 있어 자동 업데이트되지 않습니다."
         echo "클론해서 쓰는 경우 해당 폴더에서 git pull 후 ./setup.sh 를 실행하세요."
+    fi
+
+    # Haiku subagent for bulk reading. Kept if present, so local edits survive updates.
+    if [ "$client" = claude ] && [ ! -e .claude/agents/doc-skimmer.md ]; then
+        mkdir -p .claude/agents
+        if curl -fsSL "$AGENT_URL" -o .claude/agents/doc-skimmer.md.tmp; then
+            mv .claude/agents/doc-skimmer.md.tmp .claude/agents/doc-skimmer.md
+            echo "claude: doc-skimmer 서브에이전트(Haiku)를 추가했습니다."
+        else
+            rm -f .claude/agents/doc-skimmer.md.tmp
+            echo "경고: doc-skimmer 서브에이전트를 받지 못했습니다. 나머지 설치는 완료되었습니다." >&2
+        fi
     fi
 
     echo

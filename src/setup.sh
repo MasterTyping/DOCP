@@ -9,13 +9,13 @@ if ! command -v "$PYTHON" >/dev/null; then
     echo "오류: $PYTHON 을 찾을 수 없습니다." >&2
     exit 1
 fi
-if ! "$PYTHON" -c 'import sys; sys.exit(sys.version_info < (3, 10))'; then
-    echo "오류: Python 3.10 이상이 필요합니다. (현재: $("$PYTHON" --version 2>&1))" >&2
+if ! "$PYTHON" -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
+    echo "오류: Python 3.11 이상이 필요합니다. (현재: $("$PYTHON" --version 2>&1))" >&2
     exit 1
 fi
 
 [ -x .venv/bin/python ] || "$PYTHON" -m venv .venv
-.venv/bin/python -m pip install -q --disable-pip-version-check -r requirements.txt
+.venv/bin/python -m pip install -q --disable-pip-version-check ..
 .venv/bin/python -c 'import pymupdf; from mcp.server.fastmcp import FastMCP'
 
 printf -v py '%q' "$PWD/.venv/bin/python"

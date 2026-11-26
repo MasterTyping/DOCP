@@ -1,12 +1,18 @@
-"""Run with: python -m unittest test_server"""
+"""Run from the repo root: python -m unittest src.test_server"""
 import asyncio
+import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 import pymupdf
 
-import src.server as server
+# server imports doc_export as a top-level module, as it is when installed.
+sys.path.insert(0, str(Path(__file__).parent))
+
+import doc_export  # noqa: E402
+import src.server as server  # noqa: E402
 
 
 class Documents(unittest.TestCase):
@@ -91,6 +97,88 @@ class Documents(unittest.TestCase):
         self.assertEqual(server.get_pdf_info("a.pdf")["page_count"], 1)
         self.assertEqual(server.search_pdf("a.pdf", "hello")["results"][0]["page"], 1)
         self.assertIn("hello pdf", server.read_pdf_pages("a.pdf", 1, 1)["pages"][0]["text"])
+
+    def test_pdf_outside_folder_is_rejected(self):
+        doc = pymupdf.open()
+        doc.new_page().insert_text((72, 72), "secret")
+        doc.save(self.root / "secret.pdf")
+        doc.close()
+        for name in ("../secret.pdf", str(self.root / "secret.pdf")):
+            with self.assertRaises(ValueError):
+                server.get_pdf_info(name)
+
+    def test_search_falls_back_to_all_words_and_ranks_documents(self):
+        (self.docs / "a.md").write_text("안전의 관리 기준", encoding="utf-8")
+        found = server.search_pdf("a.md", "안전 관리")
+        self.assertEqual((found["mode"], found["results"][0]["page"]), ("all_words", 1))
+        (self.docs / "b.md").write_text("안전 관리\n안전 관리\n안전 관리", encoding="utf-8")
+        ranked = server.search_folder("", "안전 관리", 2)
+        self.assertEqual(ranked["mode"], "phrase")
+        self.assertEqual([r["file_path"] for r in ranked["results"]], ["b.md", "b.md"])
+        self.assertTrue(ranked["truncated"])
+
+    def test_read_is_capped_by_characters(self):
+        (self.docs / "big.md").write_text("\n".join(["가" * 500] * 100), encoding="utf-8")
+        read = server.read_pdf_pages("big.md", 1, 1)
+        self.assertTrue(read["truncated"])
+        self.assertEqual(len(read["pages"][0]["text"]), server.MAX_READ_CHARS)
+
+    def test_scanned_pdf_is_flagged(self):
+        doc = pymupdf.open()
+        doc.new_page()
+        doc.save(self.docs / "scan.pdf")
+        doc.close()
+        info = server.get_pdf_info("scan.pdf")
+        self.assertEqual(info["pages_without_text"], 1)
+        self.assertIn("warning", info)
+
+    def test_skim_modes(self):
+        lines = ["# 개요", "개요 본문"] + ["x"] * 98 + ["# 결론", "결론 본문 핵심"]
+        (self.docs / "s.md").write_text("\n".join(lines), encoding="utf-8")
+        toc = server.skim_document("s.md")
+        self.assertEqual(toc["mode"], "toc")
+        self.assertEqual([(e["page"], e["title"]) for e in toc["excerpts"]], [(1, "개요"), (2, "결론")])
+        self.assertTrue(toc["excerpts"][1]["text"].startswith("결론 결론 본문 핵심"))
+        hit = server.skim_document("s.md", query="핵심")
+        self.assertEqual((hit["mode"], [e["page"] for e in hit["excerpts"]]), ("query", [2]))
+        (self.docs / "plain.md").write_text("본문만 있음", encoding="utf-8")
+        self.assertEqual(server.skim_document("plain.md")["mode"], "pages")
+
+    def test_notion_export_saves_backup_and_requires_login_steps(self):
+        out = self.root / "exports"
+        with unittest.mock.patch.dict("os.environ", {"PDF_RAG_OUT": str(out)}):
+            res = server.export_document("# 제목\n본문", "notion", "회의록")
+        self.assertEqual(Path(res["saved_markdown"]).read_text(encoding="utf-8"), "# 제목\n본문")
+        self.assertIn("/mcp", res["login_guide"])
+        self.assertTrue(any("stop" in step for step in res["next_steps"]))
+
+
+class Export(unittest.TestCase):
+    MD = "# 보고서\n\n## 요약\n\n- 첫째 **항목**\n- 둘째\n\n| 구분 | 값 |\n|---|---|\n| 안전 | 3 |\n\n```\ncode\n```\n"
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.out = Path(tmp.name)
+
+    def test_every_format_and_no_overwrite(self):
+        from docx import Document
+        from pptx import Presentation
+
+        for fmt in ("md", "html", "pdf", "docx", "pptx"):
+            path = doc_export.export(self.MD, fmt, self.out, "../보고서.txt")
+            self.assertEqual(path, (self.out / f"보고서.{fmt}").resolve())
+        self.assertIn("<h2>요약</h2>", (self.out / "보고서.html").read_text(encoding="utf-8"))
+        with pymupdf.open(self.out / "보고서.pdf") as pdf:
+            self.assertIn("첫째 항목", pdf[0].get_text())
+        docx = Document(self.out / "보고서.docx")
+        self.assertEqual([p.text for p in docx.paragraphs][:3], ["보고서", "요약", "첫째 항목"])
+        self.assertEqual(docx.tables[0].cell(1, 0).text, "안전")
+        slides = Presentation(self.out / "보고서.pptx").slides
+        self.assertEqual([s.shapes.title.text for s in slides], ["보고서", "요약"])
+        self.assertEqual(doc_export.export("x", "md", self.out, "보고서").name, "보고서-1.md")
+        with self.assertRaises(ValueError):
+            doc_export.export("x", "exe", self.out, "a")
 
 
 if __name__ == "__main__":
